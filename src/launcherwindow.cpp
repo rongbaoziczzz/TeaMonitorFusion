@@ -206,7 +206,7 @@ LauncherWindow::LauncherWindow(QWidget *parent)
     const auto spectrometerCard = makeCard(
         QStringLiteral("模块一"),
         QStringLiteral("光谱仪检测"),
-        QStringLiteral("点击后会先弹出光谱仪选择框，再进入海洋光学光谱仪检测界面或如海广电光谱仪检测界面。两个检测界面互不干扰。"),
+        QStringLiteral("点击后会先弹出光谱仪选择框，再进入海洋光学光谱仪检测界面或如海广电光谱仪检测界面。两个检测界面彼此独立。"),
         QStringLiteral("选择光谱仪"),
         QStringLiteral("#0f766e"));
 
@@ -235,7 +235,7 @@ LauncherWindow::LauncherWindow(QWidget *parent)
     m_summaryLabel = new QLabel(
         QStringLiteral("1. 点击“选择光谱仪”后，会弹出二级选择框：海洋光学光谱仪、如海广电光谱仪。\n"
                        "2. 点击“选择工业相机”后，会弹出工业相机选择框。\n"
-                       "3. 进入子界面后，系统只保留当前设备的功能区和状态区。\n"
+                       "3. 进入子界面后，系统只保留当前设备对应的功能区和状态区。\n"
                        "4. 如需切换设备，可在子界面顶部返回首页重新选择。"),
         planCard);
     m_summaryLabel->setWordWrap(true);

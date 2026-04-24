@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 
     const DeviceProfile noSpectrometer{
         QStringLiteral("none"),
-        QStringLiteral("未启用"),
+        QStringLiteral("本次不启用光谱仪"),
         QString(),
         QStringLiteral("-"),
         QStringLiteral("-"),
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 
     const DeviceProfile noCamera{
         QStringLiteral("none"),
-        QStringLiteral("未启用"),
+        QStringLiteral("本次不启用工业相机"),
         QString(),
         QStringLiteral("-"),
         QStringLiteral("-"),
