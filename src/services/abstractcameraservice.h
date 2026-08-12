@@ -14,7 +14,18 @@ public:
     virtual bool open(QString *errorMessage = nullptr) = 0;
     virtual void close() = 0;
     virtual bool isOpen() const = 0;
-    virtual void setExposureMs(int exposureMs) = 0;
-    virtual void setGain(int gain) = 0;
-    virtual QImage grabFrame() = 0;
+    virtual bool setExposureMs(int exposureMs, QString *errorMessage = nullptr) = 0;
+    virtual bool setGain(int gain, QString *errorMessage = nullptr) = 0;
+    virtual bool setParameters(int exposureMs, int gain, QString *errorMessage = nullptr)
+    {
+        return setExposureMs(exposureMs, errorMessage) && setGain(gain, errorMessage);
+    }
+    virtual bool recoverStream(QString *errorMessage = nullptr)
+    {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("当前相机服务不支持独立恢复图像流。");
+        }
+        return false;
+    }
+    virtual QImage grabFrame(QString *errorMessage = nullptr) = 0;
 };

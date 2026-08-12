@@ -27,7 +27,7 @@ EBusCameraService::~EBusCameraService()
 
 QString EBusCameraService::serviceName() const
 {
-    return QStringLiteral("eBUS 工业相机");
+    return QStringLiteral("工业相机");
 }
 
 QString EBusCameraService::sdkName() const
@@ -51,6 +51,7 @@ bool EBusCameraService::open(QString *errorMessage)
     system.Find();
 
     m_selectedDeviceInfo = nullptr;
+    int discoveredDeviceCount = 0;
     for (uint32_t i = 0; i < system.GetInterfaceCount(); ++i) {
         const PvInterface *iface = system.GetInterface(i);
         if (!iface) {
@@ -60,20 +61,26 @@ bool EBusCameraService::open(QString *errorMessage)
         for (uint32_t j = 0; j < iface->GetDeviceCount(); ++j) {
             const PvDeviceInfo *info = iface->GetDeviceInfo(j);
             if (info) {
-                m_selectedDeviceInfo = info;
-                break;
+                ++discoveredDeviceCount;
+                if (!m_selectedDeviceInfo) {
+                    m_selectedDeviceInfo = info;
+                }
             }
-        }
-
-        if (m_selectedDeviceInfo) {
-            break;
         }
     }
 
     if (!m_selectedDeviceInfo) {
         if (errorMessage) {
-            *errorMessage = QStringLiteral("未检测到可用的 eBUS 工业相机。");
+            *errorMessage = QStringLiteral("未检测到可用的工业相机。");
         }
+        return false;
+    }
+    if (discoveredDeviceCount > 1) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("检测到 %1 台工业相机，无法确定目标设备，请联系系统管理员。")
+                                .arg(discoveredDeviceCount);
+        }
+        m_selectedDeviceInfo = nullptr;
         return false;
     }
 
@@ -81,83 +88,43 @@ bool EBusCameraService::open(QString *errorMessage)
     PvDevice *device = PvDevice::CreateAndConnect(static_cast<const PvDeviceInfo *>(m_selectedDeviceInfo), &result);
     if (!device || !result.IsOK()) {
         if (errorMessage) {
-            *errorMessage = QStringLiteral("eBUS 相机连接失败：%1").arg(result.GetDescription().GetAscii());
+            *errorMessage = QStringLiteral("工业相机连接失败：%1").arg(result.GetDescription().GetAscii());
         }
         return false;
     }
 
     m_device = device;
-    m_isOpen = true;
     auto *params = device->GetParameters();
+    QString serialNumber;
     if (params) {
         PvString vendor;
         PvString model;
+        PvString serial;
         if (params->GetStringValue("DeviceVendorName", vendor).IsOK() &&
             params->GetStringValue("DeviceModelName", model).IsOK()) {
             m_modelName = QStringLiteral("%1 %2").arg(vendor.GetAscii(), model.GetAscii());
         }
+        if (params->GetStringValue("DeviceSerialNumber", serial).IsOK()) {
+            serialNumber = QString::fromLatin1(serial.GetAscii());
+        }
     }
     if (m_modelName.isEmpty()) {
-        m_modelName = QStringLiteral("eBUS 工业相机");
+        m_modelName = QStringLiteral("工业相机");
     }
-    m_deviceSummary = QStringLiteral("已连接 %1。").arg(m_modelName);
-    return true;
-#else
-    if (errorMessage) {
-        *errorMessage = QStringLiteral("本机只检测到 eBUS Player，未找到 eBUS 开发头文件（如 PvSystem.h），当前版本无法编译真实相机接入。");
-    }
-    return false;
-#endif
-}
-
-void EBusCameraService::close()
-{
-#ifdef TEA_MONITOR_HAS_EBUS_SDK
-    if (m_device) {
-        PvDevice::Free(static_cast<PvDevice *>(m_device));
-        m_device = nullptr;
-    }
-#endif
-    m_isOpen = false;
-    m_deviceSummary = QStringLiteral("eBUS 工业相机已断开。");
-}
-
-bool EBusCameraService::isOpen() const
-{
-    return m_isOpen;
-}
-
-void EBusCameraService::setExposureMs(int exposureMs)
-{
-    m_exposureMs = exposureMs;
-}
-
-void EBusCameraService::setGain(int gain)
-{
-    m_gain = gain;
-}
-
-QImage EBusCameraService::grabFrame()
-{
-#ifdef TEA_MONITOR_HAS_EBUS_SDK
-    if (!m_isOpen || !m_device || !m_selectedDeviceInfo) {
-        return {};
+    if (!serialNumber.isEmpty()) {
+        m_modelName += QStringLiteral("，序列号：%1").arg(serialNumber);
     }
 
-    auto *device = static_cast<PvDevice *>(m_device);
     const auto *info = static_cast<const PvDeviceInfo *>(m_selectedDeviceInfo);
-    PvResult result;
     PvStream *stream = PvStream::CreateAndOpen(info, &result);
     if (!stream || !result.IsOK()) {
-        return {};
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("相机数据流打开失败：%1").arg(result.GetDescription().GetAscii());
+        }
+        close();
+        return false;
     }
-
-    PvPipeline pipeline(stream);
-    pipeline.SetBufferCount(4);
-    if (!pipeline.Start().IsOK()) {
-        PvStream::Free(stream);
-        return {};
-    }
+    m_stream = stream;
 
     if (auto *gevDevice = dynamic_cast<PvDeviceGEV *>(device)) {
         if (auto *gevStream = dynamic_cast<PvStreamGEV *>(stream)) {
@@ -166,65 +133,200 @@ QImage EBusCameraService::grabFrame()
         }
     }
 
-    if (auto *params = device->GetParameters()) {
-        params->SetEnumValue("AcquisitionMode", "Continuous");
-        params->SetEnumValue("TriggerMode", "Off");
-        params->ExecuteCommand("AcquisitionStart");
+    auto *pipeline = new PvPipeline(stream);
+    pipeline->SetBufferCount(8);
+    result = pipeline->Start();
+    if (!result.IsOK()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("相机采集启动失败：%1").arg(result.GetDescription().GetAscii());
+        }
+        delete pipeline;
+        m_pipeline = nullptr;
+        close();
+        return false;
     }
-    device->StreamEnable();
+    m_pipeline = pipeline;
 
+    m_isOpen = true;
+    if (!applyCameraParameters(errorMessage)) {
+        close();
+        return false;
+    }
+
+    result = device->StreamEnable();
+    if (!result.IsOK() || !params || !params->ExecuteCommand("AcquisitionStart").IsOK()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("工业相机无法进入连续采集状态。");
+        }
+        close();
+        return false;
+    }
+
+    m_deviceSummary = QStringLiteral("已连接 %1。").arg(m_modelName);
+    return true;
+#else
+    if (errorMessage) {
+        *errorMessage = QStringLiteral("工业相机支持组件不可用，请联系系统管理员。");
+    }
+    return false;
+#endif
+}
+
+void EBusCameraService::close()
+{
+#ifdef TEA_MONITOR_HAS_EBUS_SDK
+    auto *device = static_cast<PvDevice *>(m_device);
+    if (device) {
+        if (auto *params = device->GetParameters()) {
+            params->ExecuteCommand("AcquisitionStop");
+        }
+        device->StreamDisable();
+    }
+    if (m_pipeline) {
+        auto *pipeline = static_cast<PvPipeline *>(m_pipeline);
+        pipeline->Stop();
+        delete pipeline;
+        m_pipeline = nullptr;
+    }
+    if (m_stream) {
+        PvStream::Free(static_cast<PvStream *>(m_stream));
+        m_stream = nullptr;
+    }
+    if (m_device) {
+        PvDevice::Free(static_cast<PvDevice *>(m_device));
+        m_device = nullptr;
+    }
+    m_selectedDeviceInfo = nullptr;
+#endif
+    m_isOpen = false;
+    m_deviceSummary = QStringLiteral("工业相机已断开。");
+}
+
+bool EBusCameraService::isOpen() const
+{
+    return m_isOpen;
+}
+
+bool EBusCameraService::setExposureMs(int exposureMs, QString *errorMessage)
+{
+    m_exposureMs = exposureMs;
+    return applyCameraParameters(errorMessage);
+}
+
+bool EBusCameraService::setGain(int gain, QString *errorMessage)
+{
+    m_gain = gain;
+    return applyCameraParameters(errorMessage);
+}
+
+QImage EBusCameraService::grabFrame(QString *errorMessage)
+{
+#ifdef TEA_MONITOR_HAS_EBUS_SDK
+    if (!m_isOpen || !m_device || !m_pipeline) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("工业相机尚未连接。");
+        }
+        return {};
+    }
+
+    auto *pipeline = static_cast<PvPipeline *>(m_pipeline);
     PvBuffer *buffer = nullptr;
     PvResult opResult;
-    const PvResult grabResult = pipeline.RetrieveNextBuffer(&buffer, 1000, &opResult);
-
-    if (auto *params = device->GetParameters()) {
-        params->ExecuteCommand("AcquisitionStop");
-    }
-    device->StreamDisable();
-    pipeline.Stop();
-    PvStream::Free(stream);
-
+    const PvResult grabResult = pipeline->RetrieveNextBuffer(&buffer, 1000, &opResult);
     if (!grabResult.IsOK() || !opResult.IsOK() || !buffer) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("相机取帧失败：%1 / %2")
+                                .arg(grabResult.GetDescription().GetAscii(), opResult.GetDescription().GetAscii());
+        }
         return {};
     }
 
+    QImage frame;
     PvImage *image = buffer->GetImage();
-    if (!image) {
-        return {};
-    }
+    if (image) {
+        const PvPixelType pixelType = image->GetPixelType();
+        const uint32_t width = image->GetWidth();
+        const uint32_t height = image->GetHeight();
+        const uint8_t *data = image->GetDataPointer();
 
-    const PvPixelType pixelType = image->GetPixelType();
-    const uint32_t width = image->GetWidth();
-    const uint32_t height = image->GetHeight();
-    const uint8_t *data = image->GetDataPointer();
+        if (pixelType == PvPixelMono8) {
+            const uint32_t stride = width + image->GetPaddingX();
+            frame = QImage(data, width, height, stride, QImage::Format_Grayscale8).copy();
+        } else if (pixelType == PvPixelBayerRG8 || pixelType == PvPixelBayerBG8 ||
+                   pixelType == PvPixelBayerGR8 || pixelType == PvPixelBayerGB8) {
+            static PvBufferConverter converter;
+            converter.SetBayerFilter(PvBayerFilterSimple);
 
-    if (pixelType == PvPixelMono8) {
-        const uint32_t stride = width + image->GetPaddingX();
-        return QImage(data, width, height, stride, QImage::Format_Grayscale8).copy();
-    }
-
-    if (pixelType == PvPixelBayerRG8 || pixelType == PvPixelBayerBG8 ||
-        pixelType == PvPixelBayerGR8 || pixelType == PvPixelBayerGB8) {
-        static PvBufferConverter converter;
-        converter.SetBayerFilter(PvBayerFilterSimple);
-
-        PvBuffer rgbBuffer;
-        PvImage *rgbImage = rgbBuffer.GetImage();
-        if (!rgbImage || !rgbImage->Alloc(width, height, PvPixelRGB8Packed).IsOK()) {
-            return {};
+            PvBuffer rgbBuffer;
+            PvImage *rgbImage = rgbBuffer.GetImage();
+            if (rgbImage && rgbImage->Alloc(width, height, PvPixelRGB8Packed).IsOK() &&
+                converter.Convert(buffer, &rgbBuffer).IsOK()) {
+                const uint32_t stride = rgbImage->GetWidth() * 3 + rgbImage->GetPaddingX();
+                frame = QImage(rgbImage->GetDataPointer(),
+                               rgbImage->GetWidth(),
+                               rgbImage->GetHeight(),
+                               stride,
+                               QImage::Format_RGB888)
+                            .copy();
+            }
         }
-        if (!converter.Convert(buffer, &rgbBuffer).IsOK()) {
-            return {};
-        }
+    }
+    pipeline->ReleaseBuffer(buffer);
 
-        const uint32_t stride = rgbImage->GetWidth() * 3 + rgbImage->GetPaddingX();
-        return QImage(rgbImage->GetDataPointer(),
-                      rgbImage->GetWidth(),
-                      rgbImage->GetHeight(),
-                      stride,
-                      QImage::Format_RGB888)
-            .copy();
+    if (frame.isNull() && errorMessage) {
+        *errorMessage = QStringLiteral("相机返回了不支持的图像格式。");
+    }
+    return frame;
+#else
+    if (errorMessage) {
+        *errorMessage = QStringLiteral("工业相机支持组件不可用，请联系系统管理员。");
     }
 #endif
     return {};
+}
+
+bool EBusCameraService::applyCameraParameters(QString *errorMessage)
+{
+#ifdef TEA_MONITOR_HAS_EBUS_SDK
+    if (!m_device || !m_isOpen) {
+        return true;
+    }
+
+    auto *params = static_cast<PvDevice *>(m_device)->GetParameters();
+    if (!params) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("无法读取工业相机参数。");
+        }
+        return false;
+    }
+
+    PvResult exposureResult = params->SetFloatValue("ExposureTime", static_cast<double>(m_exposureMs) * 1000.0);
+    if (!exposureResult.IsOK()) {
+        exposureResult = params->SetFloatValue("ExposureTimeAbs", static_cast<double>(m_exposureMs) * 1000.0);
+    }
+    if (!exposureResult.IsOK()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("设置相机曝光失败：%1").arg(exposureResult.GetDescription().GetAscii());
+        }
+        return false;
+    }
+
+    PvResult gainResult = params->SetFloatValue("Gain", static_cast<double>(m_gain));
+    if (!gainResult.IsOK()) {
+        gainResult = params->SetIntegerValue("Gain", m_gain);
+    }
+    if (!gainResult.IsOK()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("设置相机增益失败：%1").arg(gainResult.GetDescription().GetAscii());
+        }
+        return false;
+    }
+
+    params->SetEnumValue("AcquisitionMode", "Continuous");
+    params->SetEnumValue("TriggerMode", "Off");
+    return true;
+#else
+    Q_UNUSED(errorMessage);
+    return true;
+#endif
 }

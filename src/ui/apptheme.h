@@ -1,8 +1,28 @@
 #pragma once
 
+#include <QColor>
+#include <QIcon>
+#include <QPainter>
+#include <QPixmap>
+#include <QStyle>
 #include <QString>
 
 namespace AppTheme {
+
+inline QIcon tintedStandardIcon(QStyle *style,
+                                QStyle::StandardPixmap standardPixmap,
+                                const QColor &color = QColor(Qt::white))
+{
+    if (!style) {
+        return {};
+    }
+    QPixmap pixmap = style->standardIcon(standardPixmap).pixmap(18, 18);
+    QPainter painter(&pixmap);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(pixmap.rect(), color);
+    painter.end();
+    return QIcon(pixmap);
+}
 
 inline QString surfaceColor()
 {
@@ -51,19 +71,22 @@ inline QString subtleButtonPressedColor()
 
 inline QString primaryButtonStyle(const QString &color)
 {
+    const QColor base(color);
+    const QString hoverColor = base.lighter(112).name();
+    const QString pressedColor = base.darker(112).name();
     return QStringLiteral(
                "QPushButton {"
                " background: %1;"
                " color: white;"
                " border: none;"
-               " border-radius: 15px;"
-               " font: 700 12pt 'Microsoft YaHei UI';"
-               " padding: 10px 18px;"
+               " border-radius: 6px;"
+               " font: 700 11pt 'Microsoft YaHei UI';"
+               " padding: 8px 14px;"
                " }"
                "QPushButton:hover { background: %2; }"
                "QPushButton:pressed { background: %3; }"
                "QPushButton:disabled { background: #94a3b8; color: #e2e8f0; }")
-        .arg(color, color, color);
+        .arg(color, hoverColor, pressedColor);
 }
 
 inline QString secondaryButtonStyle()
@@ -73,12 +96,13 @@ inline QString secondaryButtonStyle()
         " background: %1;"
         " color: %2;"
         " border: none;"
-        " border-radius: 15px;"
-        " font: 700 12pt 'Microsoft YaHei UI';"
-        " padding: 10px 18px;"
+        " border-radius: 6px;"
+        " font: 700 11pt 'Microsoft YaHei UI';"
+        " padding: 8px 14px;"
         " }"
         "QPushButton:hover { background: %3; }"
-        "QPushButton:pressed { background: %4; }")
+        "QPushButton:pressed { background: %4; }"
+        "QPushButton:disabled { background: #e2e8f0; color: #94a3b8; }")
         .arg(subtleButtonColor(), textColor(), subtleButtonHoverColor(), subtleButtonPressedColor());
 }
 
@@ -88,7 +112,7 @@ inline QString sectionCardStyle()
                "QWidget {"
                " background: %1;"
                " border: 1px solid %2;"
-               " border-radius: 20px;"
+               " border-radius: 8px;"
                " }"
                "QLabel { border: none; background: transparent; color: %3; }")
         .arg(cardColor(), cardBorderColor(), textColor());
@@ -120,8 +144,8 @@ inline QString tagStyle()
                " color: #0f766e;"
                " background: #ecfdf5;"
                " border: 1px solid #a7f3d0;"
-               " border-radius: 999px;"
-               " padding: 6px 12px;");
+               " border-radius: 5px;"
+               " padding: 5px 10px;");
 }
 
 inline QString noticeCardStyle()
@@ -130,7 +154,7 @@ inline QString noticeCardStyle()
                "QWidget {"
                " background: #eff6ff;"
                " border: 1px solid #bfdbfe;"
-               " border-radius: 22px;"
+               " border-radius: 8px;"
                " }"
                "QLabel { border: none; background: transparent; color: #1e3a8a; }");
 }
@@ -202,8 +226,8 @@ inline QString listWidgetStyle()
         " background: #f8fafc;"
         " color: #0f172a;"
         " border: 1px solid #dbe3ec;"
-        " border-radius: 20px;"
-        " padding: 10px;"
+        " border-radius: 8px;"
+        " padding: 8px;"
         " outline: none;"
         " font: 12pt 'Microsoft YaHei UI';"
         " }"
@@ -211,8 +235,8 @@ inline QString listWidgetStyle()
         " color: #0f172a;"
         " background: #ffffff;"
         " border: 1px solid #d7e1ee;"
-        " border-radius: 14px;"
-        " padding: 18px;"
+        " border-radius: 6px;"
+        " padding: 14px;"
         " margin: 4px 2px;"
         " }"
         "QListWidget::item:hover {"
@@ -237,10 +261,10 @@ inline QString spinBoxStyle()
 {
     return QStringLiteral(
         "QSpinBox {"
-        " min-height: 56px;"
+        " min-height: 42px;"
         " border: 1px solid #cbd5e1;"
-        " border-radius: 14px;"
-        " padding: 0 16px;"
+        " border-radius: 6px;"
+        " padding: 0 12px;"
         " font: 12pt 'Microsoft YaHei UI';"
         " color: #0f172a;"
         " background: #f8fafc;"
@@ -279,6 +303,38 @@ inline QString applicationStyleSheet()
         " font-family: 'Microsoft YaHei UI';"
         " }"
         "QLabel { color: #0f172a; }"
+        "QMainWindow, QDialog { background: #f8fafc; }"
+        "QStatusBar {"
+        " background: #eef2f7;"
+        " color: #475569;"
+        " border-top: 1px solid #dbe3ec;"
+        " padding: 2px 8px;"
+        " }"
+        "QLineEdit, QComboBox {"
+        " min-height: 38px;"
+        " padding: 0 10px;"
+        " border: 1px solid #cbd5e1;"
+        " border-radius: 6px;"
+        " background: #ffffff;"
+        " selection-background-color: #bfdbfe;"
+        " }"
+        "QLineEdit:focus, QComboBox:focus { border-color: #2563eb; }"
+        "QTableWidget {"
+        " background: #ffffff;"
+        " alternate-background-color: #f8fafc;"
+        " border: 1px solid #dbe3ec;"
+        " gridline-color: #e2e8f0;"
+        " selection-background-color: #dbeafe;"
+        " selection-color: #0f172a;"
+        " }"
+        "QHeaderView::section {"
+        " background: #eef2f7;"
+        " color: #334155;"
+        " border: none;"
+        " border-bottom: 1px solid #dbe3ec;"
+        " padding: 8px 10px;"
+        " font-weight: 700;"
+        " }"
         "QToolTip {"
         " color: #0f172a;"
         " background: #ffffff;"

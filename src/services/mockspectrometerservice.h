@@ -11,9 +11,9 @@ public:
     bool open(QString *errorMessage = nullptr) override;
     void close() override;
     bool isOpen() const override;
-    void setIntegrationTimeUs(int integrationTimeUs) override;
-    void setSmoothing(int smoothing) override;
-    void setAverageCount(int averageCount) override;
+    bool setIntegrationTimeUs(int integrationTimeUs, QString *errorMessage = nullptr) override;
+    bool setSmoothing(int smoothing, QString *errorMessage = nullptr) override;
+    bool setAverageCount(int averageCount, QString *errorMessage = nullptr) override;
     bool acquire(QVector<double> &wavelengths,
                  QVector<double> &intensities,
                  QString *errorMessage = nullptr) override;

@@ -6,17 +6,17 @@
 
 QString MockCameraService::serviceName() const
 {
-    return QStringLiteral("工业相机模拟器");
+    return QStringLiteral("离线图像数据源");
 }
 
 QString MockCameraService::sdkName() const
 {
-    return QStringLiteral("内置模拟源");
+    return QStringLiteral("内置数据源");
 }
 
 QString MockCameraService::deviceSummary() const
 {
-    return QStringLiteral("模拟工业相机，可用于演示、培训和界面联调。");
+    return QStringLiteral("离线图像数据源已就绪。");
 }
 
 bool MockCameraService::open(QString *errorMessage)
@@ -37,18 +37,29 @@ bool MockCameraService::isOpen() const
     return m_isOpen;
 }
 
-void MockCameraService::setExposureMs(int exposureMs)
+bool MockCameraService::setExposureMs(int exposureMs, QString *errorMessage)
 {
+    Q_UNUSED(errorMessage);
     m_exposureMs = exposureMs;
+    return true;
 }
 
-void MockCameraService::setGain(int gain)
+bool MockCameraService::setGain(int gain, QString *errorMessage)
 {
+    Q_UNUSED(errorMessage);
     m_gain = gain;
+    return true;
 }
 
-QImage MockCameraService::grabFrame()
+QImage MockCameraService::grabFrame(QString *errorMessage)
 {
+    if (!m_isOpen) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("离线图像数据源尚未连接。");
+        }
+        return {};
+    }
+
     QImage image(960, 540, QImage::Format_ARGB32_Premultiplied);
     image.fill(QColor("#f4f7fb"));
 
@@ -87,7 +98,7 @@ QImage MockCameraService::grabFrame()
     painter.drawLine(80, 270, 880, 270);
 
     painter.setPen(QColor("#b91c1c"));
-    painter.drawText(QRect(700, 460, 180, 24), Qt::AlignRight, QStringLiteral("模拟检测叠层"));
+    painter.drawText(QRect(700, 460, 180, 24), Qt::AlignRight, QStringLiteral("离线数据"));
 
     return image;
 }

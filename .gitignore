@@ -1,4 +1,7 @@
 build/
+build_verify/
+release/
+diagnostics/
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
@@ -39,3 +42,14 @@ Makefile
 .idea/
 Thumbs.db
 Desktop.ini
+
+# 厂商 SDK/驱动由授权用户在本机部署，说明文件保留在仓库中。
+third_party/device_support/SeaSDK/bin/
+third_party/device_support/SeaSDK/include/
+third_party/device_support/OceanDirect/sdk/
+third_party/device_support/Pleora_eBUS/eBUS_SDK/
+third_party/device_support/Aravis/runtime/
+third_party/device_support/Aravis/aravis-*/
+
+# Local scratch files
+src/test.txt

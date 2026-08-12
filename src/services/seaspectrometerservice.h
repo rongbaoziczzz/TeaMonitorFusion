@@ -14,9 +14,9 @@ public:
     bool open(QString *errorMessage = nullptr) override;
     void close() override;
     bool isOpen() const override;
-    void setIntegrationTimeUs(int integrationTimeUs) override;
-    void setSmoothing(int smoothing) override;
-    void setAverageCount(int averageCount) override;
+    bool setIntegrationTimeUs(int integrationTimeUs, QString *errorMessage = nullptr) override;
+    bool setSmoothing(int smoothing, QString *errorMessage = nullptr) override;
+    bool setAverageCount(int averageCount, QString *errorMessage = nullptr) override;
     bool acquire(QVector<double> &wavelengths,
                  QVector<double> &intensities,
                  QString *errorMessage = nullptr) override;
@@ -24,10 +24,11 @@ public:
 private:
     bool m_isOpen = false;
     int m_spectrometerIndex = 0;
-    int m_integrationTimeUs = 100000;
+    int m_integrationTimeUs = 1000;
     int m_smoothing = 5;
     int m_averageCount = 5;
+    bool m_useSoftwareAverage = false;
     QString m_deviceSummary = QStringLiteral("尚未连接如海广电光谱仪。");
 
-    void applyParameters();
+    bool applyParameters(QString *errorMessage = nullptr);
 };

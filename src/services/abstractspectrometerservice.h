@@ -14,9 +14,9 @@ public:
     virtual bool open(QString *errorMessage = nullptr) = 0;
     virtual void close() = 0;
     virtual bool isOpen() const = 0;
-    virtual void setIntegrationTimeUs(int integrationTimeUs) = 0;
-    virtual void setSmoothing(int smoothing) = 0;
-    virtual void setAverageCount(int averageCount) = 0;
+    virtual bool setIntegrationTimeUs(int integrationTimeUs, QString *errorMessage = nullptr) = 0;
+    virtual bool setSmoothing(int smoothing, QString *errorMessage = nullptr) = 0;
+    virtual bool setAverageCount(int averageCount, QString *errorMessage = nullptr) = 0;
     virtual bool acquire(QVector<double> &wavelengths,
                          QVector<double> &intensities,
                          QString *errorMessage = nullptr) = 0;

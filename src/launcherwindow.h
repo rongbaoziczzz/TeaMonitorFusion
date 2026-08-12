@@ -4,8 +4,6 @@
 
 #include <QMainWindow>
 
-class QLabel;
-
 class LauncherWindow : public QMainWindow
 {
     Q_OBJECT
@@ -16,10 +14,11 @@ public:
 signals:
     void openSpectrometerRequested(const DeviceProfile &spectrometer);
     void openCameraRequested(const DeviceProfile &camera);
+    void openFusionRequested(const DeviceProfile &spectrometer, const DeviceProfile &camera);
 
 private:
-    QLabel *m_summaryLabel = nullptr;
-
     void openSpectrometerDialog();
     void openCameraDialog();
+    void openFusionDialogs();
+    void openHistoryDialog();
 };

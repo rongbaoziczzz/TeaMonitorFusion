@@ -11,9 +11,9 @@ public:
     bool open(QString *errorMessage = nullptr) override;
     void close() override;
     bool isOpen() const override;
-    void setExposureMs(int exposureMs) override;
-    void setGain(int gain) override;
-    QImage grabFrame() override;
+    bool setExposureMs(int exposureMs, QString *errorMessage = nullptr) override;
+    bool setGain(int gain, QString *errorMessage = nullptr) override;
+    QImage grabFrame(QString *errorMessage = nullptr) override;
 
 private:
     bool m_isOpen = false;
